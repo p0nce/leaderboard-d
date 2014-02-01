@@ -1,0 +1,19 @@
+{
+    "name": "leaderboard-d",
+    "targetName": "leaderboard-d",
+    "targetType": "executable",
+    "sourcePath": "source",
+    "importPaths": [ "source"],    
+    "license": "public domain",
+    "description": "Very simple leaderboard server.",
+
+    "authors": [
+        "ponce"
+    ],
+
+    "dependencies": {
+        "dhsl": "~master"
+    }
+}
+
+
