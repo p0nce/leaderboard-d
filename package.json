@@ -12,7 +12,8 @@
     ],
 
     "dependencies": {
-        "dhsl": "~master"
+        "dhsl": "~master",
+        "msgpack-d": "~master"
     }
 }
 
