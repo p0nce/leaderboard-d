@@ -25,12 +25,13 @@ class ListScoreHandler : DynamicHttpHandler
             TEXT,
             JSON,
             XML,
-            MSGPACK
+            MSGPACK,
+            HTML
         }
 
         try
         {
-            Format fmt = Format.JSON;
+            Format fmt = Format.HTML;
             int N = scores.count();
 
             if (request.query != "")
@@ -50,8 +51,10 @@ class ListScoreHandler : DynamicHttpHandler
                                 fmt = Format.XML;
                             else if (tok[1] == "msgpack")
                                 fmt = Format.MSGPACK;
+                            else if (tok[1] == "html")
+                                fmt = Format.HTML;
                             else 
-                                throw new Exception(format("Unknown format %s. Accepted values: 'text', 'json', 'xml', 'msgpack'."));
+                                throw new Exception(format("Unknown format %s. Accepted values: 'text', 'json', 'xml', 'msgpack', 'html'."));
                         }
                         else if (tok[0] == "N")
                         {
@@ -102,6 +105,58 @@ class ListScoreHandler : DynamicHttpHandler
                     ubyte[] res = pack(scores.data[0..N]);
                     response.content = res;
                     response.setHeader("Content-Type", "application/x-msgpack");
+                    break;
+
+                case Format.HTML:
+                    {
+                        string list = "";
+                        for (int i = 0; i < N; ++i)
+                            list ~= format("    <tr><td><b>%s</b></td><td>%s</td><td>%s</td></tr>\n", i + 1, scores.data[i].name, scores.data[i].score);
+
+                        string res = format(
+                            "<!DOCTYPE html>\n"
+                            "<html>\n"
+                            "    <head>\n"
+                            "        <title>Global Highscores</title>\n"
+                            "        <style>\n"
+                            "            html, body {\n"
+                            "                background: #EEE;\n"
+                            "                height: 100%%;\n"
+                            "            }\n"
+                            "\n"
+                            "            html {\n"
+                            "               display: table;\n"
+                            "               margin: auto;\n"
+                            "            }\n"
+                            "\n"
+                            "            body {\n"
+                            "                display: table-cell;\n"
+                            "              vertical-align: middle;\n"
+                            "            }\n"
+                            "            table {\n"
+                            "                border: 2px solid #EDD;\n"
+                            "            }\n"
+                            "            td, tr, table {\n"
+                            "                text-align: center;\n"
+                            "                padding: 10pt;\n"
+                            "            }\n"
+                            "            tr:nth-child(even)  {background: #CCC}\n"
+                            "            tr:nth-child(odd)   {background: #DDD}\n"
+                            "        </style>\n"
+                            "    </head>\n"
+                            "\n"
+                            "    <body>\n"
+                            "        <h3>High-scores</h3>\n"
+                            "        <table>\n"
+                            "        %s\n"
+                            "        </table>\n"
+                            "    </body>\n"
+                            "</html>\n"
+                            , list );
+
+                            response.content = cast(ubyte[])(res);
+                            response.setHeader("Content-Type", " text/html");
+                    }
                     break;
             }
 
