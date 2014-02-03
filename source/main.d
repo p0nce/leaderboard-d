@@ -4,6 +4,9 @@ import std.string;
 import std.array;
 import std.conv;
 import std.algorithm;
+import std.file;
+
+import msgpack;
 
 class ListScoreHandler : DynamicHttpHandler 
 {
@@ -96,7 +99,6 @@ class ListScoreHandler : DynamicHttpHandler
                     break;
 
                 case Format.MSGPACK:
-                    import msgpack;
                     ubyte[] res = pack(scores.data[0..N]);
                     response.content = res;
                     response.setHeader("Content-Type", "application/x-msgpack");
@@ -119,10 +121,11 @@ class ListScoreHandler : DynamicHttpHandler
 
 class UpdateScoreHandler : DynamicHttpHandler 
 {
-    this(Scores scores) 
+    this(Scores scores, string filename) 
     {
         super(regex("update"));
         this.scores = scores;
+        this.filename = filename;
     }
 
     override HttpResponse handle(HttpRequest request, Address remote) 
@@ -162,8 +165,18 @@ class UpdateScoreHandler : DynamicHttpHandler
 
         if (gotName && gotScore)
         {
-            scores.update(new Score(name, score));
+            scores.update(Score(name, score));
             response.content = cast(ubyte[])("OK");
+
+            // serialize scores
+            try
+            {
+                std.file.write(filename, scores.serialize());
+            }
+            catch(Exception e)
+            {
+                writefln("%s", e.msg);
+            }
         }
         else
         {
@@ -172,10 +185,11 @@ class UpdateScoreHandler : DynamicHttpHandler
         return response;
     }
 
+    string filename;
     Scores scores;
 }
 
-class Score
+struct Score
 {
     this(string name, long score)
     {
@@ -186,20 +200,26 @@ class Score
     string name;
     long score;
 
-    override int opCmp(Object o)
+    int opCmp(ref const Score o) const
     {
-        Score sco = cast(Score)o;
-        return cast(int)(sco.score - score);
+        return cast(int)(o.score - score);
     }
 }
 
 class Scores
 {
+    // builds from serialized data
+    this(ubyte[] serializedData)
+    {
+        auto unpacker = Unpacker(serializedData);
+        unpacker.unpack(data);
+    }
+
     this(int count)
     {
         for (int i = 0; i < count; ++i)
         {
-            data ~= new Score("Anonymous", 0);
+            data ~= Score("Anonymous", 0);
         }
     }    
 
@@ -217,21 +237,38 @@ class Scores
     }
 
     Score[] data;
+
+    ubyte[] serialize()
+    {
+        return pack(data[0..data.length]);
+    }
 }
 
 void main() 
 {
-    auto scores = new Scores(100);
-	addDynamicHandler(new UpdateScoreHandler(scores));	
-    addDynamicHandler(new ListScoreHandler(scores));	
+    string database = "highscores.msgpack";
+
+    Scores scores;
+    try
+    {
+        auto bytes = cast(ubyte[]) read(database);
+        scores = new Scores(bytes);
+    }
+    catch (Exception e)
+    {
+        scores = new Scores(100);
+    }
+    
+    addDynamicHandler(new UpdateScoreHandler(scores, database));
+    addDynamicHandler(new ListScoreHandler(scores));
 
     ServerSettings settings;
     settings.port = 8080;
     settings.maxConnections = 100;
     settings.connectionTimeoutMs = 10000;
     settings.connectionQueueSize = 30;
-	
-	startServer(settings);
+
+    startServer(settings);
     scope(exit) stopServer();
     writeln("Server started. Press ENTER to exit.");    
     readln();
